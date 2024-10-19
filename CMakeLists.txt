@@ -9,9 +9,24 @@ if (POLICY CMP0141)
   set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<IF:$<AND:$<C_COMPILER_ID:MSVC>,$<CXX_COMPILER_ID:MSVC>>,$<$<CONFIG:Debug,RelWithDebInfo>:EditAndContinue>,$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>>")
 endif()
 
-project ("CS3201_socketprogramming")
+project ("socket")
 
-# 包含子專案。
-add_subdirectory ("CS3201_socketprogramming")
 
-add_subdirectory("dependencies/sockpp-1.0.0")
+
+# main program
+add_subdirectory ("socket")
+
+# Inclue C Pakage Manager, currently deprecated due to library change
+include(cmake/CPM.cmake)
+
+cmake_policy(SET CMP0079 NEW)
+
+# fetch Minimal socket from github
+include(FetchContent)
+set(BUILD_MinimalCppSocket_SAMPLES OFF CACHE BOOL "" FORCE) # excluding samples
+FetchContent_Declare(
+min_sock
+GIT_REPOSITORY https://github.com/andreacasalino/Minimal-Socket
+GIT_TAG        master
+)
+FetchContent_MakeAvailable(min_sock)
