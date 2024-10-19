@@ -5,6 +5,8 @@
 
 using namespace std;
 
+
+//nmessage is a abstract class deriving to the known method class {POST,DELETE,GET,QUIT}, for others methods, default nmessage class is used
 class nmessage {
 public:
 	virtual string formal() { return msg; }
@@ -21,6 +23,7 @@ private:
 public:
 	Delete() {
 		string sentance;
+		content.push_back("DELETE");
 		getline(cin, sentance);
 
 		while (sentance[0] != '#')
@@ -62,6 +65,7 @@ private:
 public:
 	Post() {
 		string sentance;
+		content.push_back("POST");
 		getline(cin, sentance);
 
 		while (sentance[0] != '#')
@@ -89,7 +93,6 @@ public:
 	void start() { tcp_client.open(); }
 	void addcommand(string m);
 	void sendAndreceive();
-	void block();
 private:
 	nmessage* packet;
 	MinimalSocket::Port server_port;
@@ -119,13 +122,8 @@ void socket::addcommand(const string m)
 void socket::sendAndreceive()
 {
 	string rcvbuf;
-	//check method, if string is needed, send METHOD to server to initiate it first
-	if (typeid(Post) == typeid(*packet))
-		tcp_client.send("POST");
-	else if (typeid(Delete) == typeid(*packet))
-		tcp_client.send("DELETE");
 
-	// Tie string from multiple line into one
+	// Tie string into multiple lines
 	stringstream buf(packet->formal());
 
 	string send;
@@ -136,18 +134,16 @@ void socket::sendAndreceive()
 		this_thread::sleep_for(chrono::milliseconds(300));
 	}
 
-	
-
-
+	//indicate end of string
 	if (typeid(Post) == typeid(*packet) || typeid(Delete) == typeid(*packet))
 	{
 		tcp_client.send("#");
 		this_thread::sleep_for(chrono::milliseconds(300));
 	}
 	
-
 	rcvbuf = tcp_client.receive(4096);
 	
+	//continuously get string until eof indicator '#'
 	if(typeid(Get) ==  typeid(*packet))
 		while (rcvbuf.back() != '#') {
 			cout << rcvbuf << endl;
@@ -156,14 +152,15 @@ void socket::sendAndreceive()
 		}
 
 	cout << rcvbuf << endl;
-
-
+	
+	//check quit
 	if (typeid(Quit) == typeid(*packet) && rcvbuf == "OK") {
 		cout << "Quit gracefully." << endl;
 		tcp_client.shutDown();
 		exit(0);
 	}
 
+	//just to prevent memory leak
 	delete packet;
 	packet = nullptr;
 }
@@ -179,10 +176,13 @@ int main()
 	
 	socket c_socket("127.0.0.1", MinimalSocket::Port(16111));
 	c_socket.start();
+
 	string command;
+
 	while (cin >> command) {
 		c_socket.addcommand(command);
 		c_socket.sendAndreceive();
 	}
+
 	return 0;
 }
