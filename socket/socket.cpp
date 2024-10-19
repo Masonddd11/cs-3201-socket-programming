@@ -126,10 +126,18 @@ void socket::sendAndreceive()
 		tcp_client.send("DELETE");
 
 	// Tie string from multiple line into one
-	tcp_client.send(packet->formal());
+	stringstream buf(packet->formal());
 
-	// As sending the packets so rapidly will lead to packet discard from server, time is need to for server to clear buffer
-	this_thread::sleep_for(chrono::milliseconds(300));
+	string send;
+	while (buf >> send)
+	{
+		tcp_client.send(send);
+		// As sending the packets so rapidly will lead to packet unflavourable concatination from server, time is need to for server to clear buffer
+		this_thread::sleep_for(chrono::milliseconds(300));
+	}
+
+	
+
 
 	if (typeid(Post) == typeid(*packet) || typeid(Delete) == typeid(*packet))
 	{
@@ -147,8 +155,15 @@ void socket::sendAndreceive()
 			rcvbuf = tcp_client.receive(4096);
 		}
 
-
 	cout << rcvbuf << endl;
+
+
+	if (typeid(Quit) == typeid(*packet) && rcvbuf == "OK") {
+		cout << "Quit gracefully." << endl;
+		tcp_client.shutDown();
+		exit(0);
+	}
+
 	delete packet;
 	packet = nullptr;
 }
