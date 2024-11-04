@@ -1,64 +1,90 @@
 import socket
-import threading
-import tkinter as tk
-from tkinter import simpledialog, scrolledtext
+import sys
 
-class ChatClient:
-    def __init__(self, host, port):
-        self.username = None
+BUFFER_SIZE = 4096
+
+class MessageBoardClient:
+    def __init__(self, server_ip, server_port):
+        self.server_ip = server_ip
+        self.server_port = server_port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.connect((host, port))
-        
-        self.window = tk.Tk()
-        self.window.title("Chat Client")
-        
-        self.text_area = scrolledtext.ScrolledText(self.window, state='disabled', wrap=tk.WORD)
-        self.text_area.pack(padx=10, pady=10)
-        
-        self.entry = tk.Entry(self.window, width=50)
-        self.entry.pack(padx=10, pady=10)
-        self.entry.bind("<Return>", self.send_message)
-        
-        self.ask_username()
-        
-        threading.Thread(target=self.receive_messages, daemon=True).start()
-        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.connect_to_server()
 
-    def ask_username(self):
-        self.username = simpledialog.askstring("Username", "Enter your username:")
-        if self.username:
-            self.text_area.config(state='normal')
-            self.text_area.insert(tk.END, f"{self.username} has joined the chat.\n")
-            self.text_area.config(state='disabled')
-            self.sock.sendall(f"{self.username} has joined the chat.".encode())
+    def connect_to_server(self):
+        try:
+            self.sock.connect((self.server_ip, self.server_port))
+            print(f"Connected to server {self.server_ip}:{self.server_port}")
+        except Exception as e:
+            print(f"Failed to connect to server: {e}")
+            sys.exit(1)
 
-    def receive_messages(self):
+    def send_command(self, command):
+        self.sock.sendall(bytes(command + '\n', 'utf-8'))
+
+    def receive_response(self):
+        response = self.sock.recv(BUFFER_SIZE).decode('utf-8')
+        return response
+
+    def post_message(self):
+        print("Enter your message. End with '#' on a new line.")
+        self.send_command("POST")
         while True:
-            try:
-                message = self.sock.recv(1024).decode()
-                if message:
-                    self.text_area.config(state='normal')
-                    self.text_area.insert(tk.END, message + "\n")
-                    self.text_area.config(state='disabled')
-                    self.text_area.yview(tk.END)
-            except:
+            line = input()
+            self.send_command(line)
+            if line == "#":
                 break
+        response = self.receive_response()
+        print(response)
 
-    def send_message(self, event=None):
-        message = self.entry.get()
-        if message:
-            self.text_area.config(state='normal')
-            self.text_area.insert(tk.END, f"You: {message}\n")
-            self.text_area.config(state='disabled')
-            self.sock.sendall(f"{self.username}: {message}".encode())
-            self.entry.delete(0, tk.END)
+    def get_messages(self):
+        self.send_command("GET")
+        while True:
+            response = self.receive_response()
+            if response == '#':
+                break
+            print(response)
 
-    def on_closing(self):
+    def delete_messages(self):
+        print("Enter message IDs to delete. End with '#' on a new line.")
+        self.send_command("DELETE")
+        while True:
+            line = input()
+            self.send_command(line)
+            if line == "#":
+                break
+        response = self.receive_response()
+        print(response)
+
+    def quit(self):
+        self.send_command("QUIT")
+        response = self.receive_response()
+        print(response)
         self.sock.close()
-        self.window.destroy()
+
+    def run(self):
+        while True:
+            command = input("Enter command (POST, GET, DELETE, QUIT): ").strip().upper()
+            if command == "POST":
+                self.post_message()
+            elif command == "GET":
+                self.get_messages()
+            elif command == "DELETE":
+                self.delete_messages()
+            elif command == "QUIT":
+                self.quit()
+                break
+            else:
+                self.send_command(command)
+                response = self.receive_response()
+                print(response)
 
 if __name__ == "__main__":
-    host = '127.0.0.1'
-    port = 4300
-    client = ChatClient(host, port)
-    tk.mainloop()
+    if len(sys.argv) != 3:
+        print("Usage: python MessageBoardClient.py <server_ip> <server_port>")
+        sys.exit(1)
+
+    server_ip = sys.argv[1]
+    server_port = int(sys.argv[2])
+
+    client = MessageBoardClient(server_ip, server_port)
+    client.run()
